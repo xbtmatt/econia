@@ -105,9 +105,9 @@ COIN_TYPE_EUSDC = TypeTag(
     StructTag.from_str(f"{FAUCET_ADDR}::example_usdc::ExampleUSDC")
 )
 
-LOT_SIZE = 100000 if int(sys.argv[1]) == 0 else int(sys.argv[1])  # type: ignore
-TICK_SIZE = 1 if int(sys.argv[2]) == 0 else int(sys.argv[2])  # type: ignore
-MIN_SIZE = 500 if int(sys.argv[3]) == 0 else int(sys.argv[3])  # type: ignore
+LOT_SIZE = 100000 if len(sys.argv) < 2 or int(sys.argv[1]) == 0 else int(sys.argv[1])  # type: ignore
+TICK_SIZE = 1 if len(sys.argv) < 3 or int(sys.argv[2]) == 0 else int(sys.argv[2])  # type: ignore
+MIN_SIZE = 500 if len(sys.argv) < 4 or int(sys.argv[3]) == 0 else int(sys.argv[3])  # type: ignore
 
 MAKER_APT_PER_ROUND = 100
 
@@ -141,9 +141,13 @@ async def gen_start():
         TICK_SIZE,
         MIN_SIZE,
     )
-    private_keys = read_list_from_file("./private_keys.json")
+    
+    private_keys = None
+    if os.path.exists("./private_keys.json"):
+        read_list_from_file("./private_keys.json")
     clients = []
-    if private_keys is not None:
+
+    if private_keys:
         for private_key in private_keys:
             clients.append(
                 EconiaClient(

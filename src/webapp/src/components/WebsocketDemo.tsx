@@ -15,6 +15,7 @@ const WebSocketDemo: React.FC = () => {
   const [token, setToken] = useState<string>("");
 
   // Encode the JWT token
+  // NOTE: This is a simple example; should probably generate the token server-side
   const generateAndSetToken = useCallback(async (): Promise<string> => {
     const payload = {
       mode: 'r',
