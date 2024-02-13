@@ -2,8 +2,10 @@ import asyncio
 import json
 import random
 import sys
+import os
 from os import environ
 from typing import Optional
+import time
 
 from aptos_sdk.account import Account
 from aptos_sdk.account_address import AccountAddress
@@ -107,7 +109,7 @@ COIN_TYPE_EUSDC = TypeTag(
 
 LOT_SIZE = 100000 if len(sys.argv) < 2 or int(sys.argv[1]) == 0 else int(sys.argv[1])  # type: ignore
 TICK_SIZE = 1 if len(sys.argv) < 3 or int(sys.argv[2]) == 0 else int(sys.argv[2])  # type: ignore
-MIN_SIZE = 500 if len(sys.argv) < 4 or int(sys.argv[3]) == 0 else int(sys.argv[3])  # type: ignore
+MIN_SIZE = 5000 if len(sys.argv) < 4 or int(sys.argv[3]) == 0 else int(sys.argv[3])  # type: ignore
 
 MAKER_APT_PER_ROUND = 100
 
@@ -141,7 +143,7 @@ async def gen_start():
         TICK_SIZE,
         MIN_SIZE,
     )
-    
+
     private_keys = None
     if os.path.exists("./private_keys.json"):
         read_list_from_file("./private_keys.json")
@@ -212,9 +214,10 @@ async def gen_start():
     print(len(clients))
     clients_pairs = list(zip(clients[: n // 2], clients[n // 2 :]))
     global integrator_idx
-    for i in range(10):  # type: ignore
+    last_price = random.randint(1 * 1000, (6 * 1000) - 1)
+    for i in range(100):  # type: ignore
         tasks = []
-        ticks_per_lot = random.randint(1 * 10**3, (6 * 10**3) - 1)
+        ticks_per_lot = last_price + (random.randint(1 * 1000, (6 * 1000) - 1) // 50) + i * 2
         for a, b in clients_pairs:
             task = asyncio.create_task(
                 setup_pair(
@@ -282,44 +285,56 @@ async def setup_pair(
         flip = coin_flip()
         from_type = COIN_TYPE_EAPT if flip else COIN_TYPE_EUSDC
         to_type = COIN_TYPE_EUSDC if flip else COIN_TYPE_EAPT
+        print("from type", from_type, "to type", to_type)
+
+        t0 = time.time()
 
         base_lots_remaining = base_lots
         if from_type == COIN_TYPE_EAPT:
             await fund(
                 client_maker, client_maker.user_account, 100 * 10**8, COIN_TYPE_EAPT
             )
+            print("Funded maker", time.time() - t0)
             await fund(
                 client_taker, client_taker.user_account, 600 * 10**6, COIN_TYPE_EUSDC
             )
+            print("Funded taker", time.time() - t0)
 
             await client_maker.gen_submit_tx_wait(
                 deposit_from_coinstore(
                     ECONIA_ADDR, COIN_TYPE_EAPT, market_id, 0, 100 * 10**8
                 )
             )
+            print("Deposited maker", time.time() - t0)
             await client_taker.gen_submit_tx_wait(
                 deposit_from_coinstore(
                     ECONIA_ADDR, COIN_TYPE_EUSDC, market_id, 0, 600 * 10**6
                 )
             )
+            print("Deposited taker", time.time() - t0)
         else:
             await fund(
                 client_maker, client_maker.user_account, 600 * 10**6, COIN_TYPE_EUSDC
             )
+            print("Funded maker", time.time() - t0)
+            
             await fund(
                 client_taker, client_taker.user_account, 100 * 10**8, COIN_TYPE_EAPT
             )
+            print("Funded taker", time.time() - t0)
 
             await client_maker.gen_submit_tx_wait(
                 deposit_from_coinstore(
                     ECONIA_ADDR, COIN_TYPE_EUSDC, market_id, 0, 600 * 10**6
                 )
             )
+            print("Deposited maker", time.time() - t0)
             await client_taker.gen_submit_tx_wait(
                 deposit_from_coinstore(
                     ECONIA_ADDR, COIN_TYPE_EAPT, market_id, 0, 100 * 10**8
                 )
             )
+            print("Deposited taker", time.time() - t0)
 
         orders = 0
         while base_lots_remaining > MIN_SIZE:
@@ -330,6 +345,7 @@ async def setup_pair(
             await execute_limit_order(
                 client_maker, market_id, from_type, base_lots_size, match_price
             )
+            # Normalize the three numbers to get their percentages of the sum
             await execute_market_order(client_taker, market_id, to_type, base_lots_size)
             orders += 1
             base_lots_remaining -= base_lots_size
@@ -337,7 +353,7 @@ async def setup_pair(
         print(f"Created the paired orders: {orders}")
 
     await run()
-    await asyncio.sleep(11)
+    # await asyncio.sleep(1)
 
 
 accounts = []
